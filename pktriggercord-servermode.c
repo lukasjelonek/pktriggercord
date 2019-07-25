@@ -234,8 +234,6 @@ int servermode_socket(int servermode_timeout) {
                 if ( camhandle ) {
                     write_socket_answer("0\n");
                 } else if ( (camhandle = camera_connect( NULL, NULL, -1, buf ))  ) {
-		    int resolution = 6;
-	            pslr_set_jpeg_resolution(camhandle, resolution);
 		    pslr_get_status(camhandle, &status);
                     write_socket_answer("0\n");
                 } else {
@@ -327,7 +325,32 @@ int servermode_socket(int servermode_timeout) {
                 int bufno = atoi(arg);
                 if ( check_camera(camhandle) ) {
                     uint32_t imageSize;
-                    if ( pslr_buffer_open(camhandle, bufno, PSLR_BUF_JPEG_MAX, 0) ) {
+                    if ( pslr_buffer_open(camhandle, bufno, PSLR_BUF_DNG, 0) ) {
+                        sprintf(buf, "%d\n", 1);
+                        write_socket_answer(buf);
+                    } else {
+                        imageSize = pslr_buffer_get_size(camhandle);
+                        sprintf(buf, "%d %d\n", 0, imageSize);
+                        write_socket_answer(buf);
+                        uint32_t current = 0;
+                        while (1) {
+                            uint32_t bytes;
+                            uint8_t buf[65536];
+                            bytes = pslr_buffer_read(camhandle, buf, sizeof (buf));
+                            if (bytes == 0) {
+                                break;
+                            }
+                            write_socket_answer_bin( buf, bytes);
+                            current += bytes;
+                        }
+                        pslr_buffer_close(camhandle);
+                    }
+                }
+            } else if (  (arg = is_string_prefix( client_message, "get_jpeg_buffer")) != NULL ) {
+                int bufno = atoi(arg);
+                if ( check_camera(camhandle) ) {
+                    uint32_t imageSize;
+                    if ( pslr_buffer_open(camhandle, bufno, PSLR_BUF_JPEG_MAX, status.jpeg_resolution) ) {
                         sprintf(buf, "%d\n", 1);
                         write_socket_answer(buf);
                     } else {
@@ -391,7 +414,14 @@ int servermode_socket(int servermode_timeout) {
                     }
                     write_socket_answer(buf);
                 }
-            } else {
+            } else if (  (arg = is_string_prefix( client_message, "set_jpeg_resolution")) != NULL ) {
+                int resolution = atoi(arg);
+                if ( check_camera(camhandle) ) {
+	            pslr_set_jpeg_resolution(camhandle, resolution);
+                    sprintf(buf, "%d\n", 0);
+                    write_socket_answer(buf);
+                } 
+	    } else {
                 write_socket_answer("1 Invalid servermode command\n");
             }
         }
