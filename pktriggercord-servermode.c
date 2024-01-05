@@ -369,6 +369,31 @@ int servermode_socket(int servermode_timeout) {
                         pslr_buffer_close(camhandle);
                     }
                 }
+            } else if (  (arg = is_string_prefix( client_message, "get_jpeg_buffer")) != NULL ) {
+                int bufno = atoi(arg);
+                if ( check_camera(camhandle) ) {
+                    uint32_t imageSize;
+                    if ( pslr_buffer_open(camhandle, bufno, PSLR_BUF_JPEG_MAX, status.jpeg_resolution) ) {
+                        sprintf(buf, "%d\n", 1);
+                        write_socket_answer(buf);
+                    } else {
+                        imageSize = pslr_buffer_get_size(camhandle);
+                        sprintf(buf, "%d %d\n", 0, imageSize);
+                        write_socket_answer(buf);
+                        uint32_t current = 0;
+                        while (1) {
+                            uint32_t bytes;
+                            uint8_t buf[65536];
+                            bytes = pslr_buffer_read(camhandle, buf, sizeof (buf));
+                            if (bytes == 0) {
+                                break;
+                            }
+                            write_socket_answer_bin( buf, bytes);
+                            current += bytes;
+                        }
+                        pslr_buffer_close(camhandle);
+                    }
+                }
             } else if (  (arg = is_string_prefix( client_message, "set_buffer_type")) != NULL ) {
                 if ( !strcmp(arg, "PEF") ) {
                     buffer_type = PSLR_BUF_PEF;
