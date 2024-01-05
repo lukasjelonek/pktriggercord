@@ -313,15 +313,26 @@ int servermode_socket(int servermode_timeout) {
             } else if (  (arg = is_string_prefix( client_message, "get_preview_buffer")) != NULL ) {
                 int bufno = atoi(arg);
                 if ( check_camera(camhandle) ) {
-                    uint8_t *pImage;
                     uint32_t imageSize;
-                    if ( pslr_get_buffer(camhandle, bufno, PSLR_BUF_PREVIEW, 4, &pImage, &imageSize) ) {
-                        sprintf(buf, "%d %d\n", 1, imageSize);
+                    if ( pslr_buffer_open(camhandle, bufno, PSLR_BUF_PREVIEW, 0) ) {
+                        sprintf(buf, "%d\n", 1);
                         write_socket_answer(buf);
                     } else {
+                        imageSize = pslr_buffer_get_size(camhandle);
                         sprintf(buf, "%d %d\n", 0, imageSize);
                         write_socket_answer(buf);
-                        write_socket_answer_bin(pImage, imageSize);
+                        uint32_t current = 0;
+                        while (1) {
+                            uint32_t bytes;
+                            uint8_t buf[65536];
+                            bytes = pslr_buffer_read(camhandle, buf, sizeof (buf));
+                            if (bytes == 0) {
+                                break;
+                            }
+                            write_socket_answer_bin( buf, bytes);
+                            current += bytes;
+                        }
+                        pslr_buffer_close(camhandle);
                     }
                 }
             } else if (  (arg = is_string_prefix( client_message, "get_buffer_type")) != NULL ) {
